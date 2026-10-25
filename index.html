@@ -1,0 +1,346 @@
+﻿<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self' file: https://i.scdn.co">
+<style>
+  html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; user-select: none;
+    font: 14px/1.35 "Segoe UI", system-ui, sans-serif; }
+  #stage { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; padding-bottom: 6px; }
+
+  #bubble { max-width: 270px; background: #fff; color: #222; padding: 9px 13px; border-radius: 16px;
+    box-shadow: 0 3px 12px rgba(0,0,0,.25); margin-bottom: 10px; position: relative;
+    opacity: 0; transform: translateY(6px) scale(.96); transition: opacity .2s, transform .2s; pointer-events: none; }
+  #bubble.show { opacity: 1; transform: none; pointer-events: auto; }
+  #bubble::after { content: ""; position: absolute; bottom: -8px; left: 50%; margin-left: -8px;
+    border: 8px solid transparent; border-bottom: 0; border-top-color: #fff; }
+  #bubble.thinking { color: #888; font-style: italic; }
+
+  /* toolbar + panels that pop up when you click him */
+  .hit { display: none; }
+  .hit.show { display: block; }
+  #toolbar.show { display: flex; gap: 6px; margin-bottom: 8px; }
+  #toolbar button { width: 38px; height: 38px; border-radius: 50%; border: 2px solid #000; background: #fff; font-size: 17px;
+    cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,.25); padding: 0; }
+  #toolbar button.on { background: #ffe58a; border-width: 3px; transform: translateY(-2px); }
+  .panel { width: 260px; background: #fff; color: #111; border: 2px solid #000; border-radius: 14px; padding: 10px;
+    box-shadow: 0 3px 12px rgba(0,0,0,.25); margin-bottom: 8px; box-sizing: border-box; }
+  .panel input, .panel textarea { width: 100%; box-sizing: border-box; font: inherit; border: 1.5px solid #bbb; border-radius: 9px;
+    padding: 6px 9px; outline: none; user-select: text; }
+  .panel input:focus, .panel textarea:focus { border-color: #000; }
+  .panel textarea { height: 110px; resize: none; }
+  .row { display: flex; gap: 6px; align-items: center; margin-top: 7px; }
+  .row .grow { flex: 1; }
+  .btn { border: 2px solid #000; background: #fff; border-radius: 9px; padding: 4px 10px; font: inherit; font-weight: 600; cursor: pointer; }
+  .btn.dark { background: #000; color: #fff; }
+  .btn:disabled { opacity: .4; cursor: default; }
+  .muted { color: #666; font-size: 12px; }
+  #chat.panel { padding: 0; border: 0; background: none; box-shadow: none; }
+  #chat input { padding: 7px 12px; border-radius: 14px; border: 2px solid #000; box-shadow: 0 3px 10px rgba(0,0,0,.2); }
+  #spotNow { display: flex; gap: 9px; align-items: center; min-height: 44px; }
+  #spotArt { width: 44px; height: 44px; border-radius: 6px; background: #eee; object-fit: cover; }
+  #spotTitle { font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #spotArtist { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #recTime { font: 700 22px/1 ui-monospace, Consolas, monospace; }
+  #recBadge { position: absolute; left: 0; bottom: 6px; background: #e0245e; color: #fff; font: 700 11px/1 sans-serif;
+    padding: 4px 7px; border-radius: 10px; display: none; z-index: 2; }
+  #dude.recording #recBadge { display: block; animation: pulse 1.2s infinite; }
+  @keyframes pulse { 50% { opacity: .55; } }
+
+  #dude { width: 150px; height: 150px; cursor: grab; position: relative; animation: bob 2.4s ease-in-out infinite; }
+  #dude.hop { animation: hop .5s ease-out; }
+  #dude.asleep { animation: breathe 4s ease-in-out infinite; }
+  #dude.hover { filter: drop-shadow(0 0 6px rgba(124,108,240,.85)); }
+  #dude img, #dude svg { width: 100%; height: 100%; object-fit: contain; pointer-events: none; }
+
+  /* animated face on top of the drawing */
+  #face { position: absolute; inset: 0; pointer-events: none; display: none; }
+  #face.on { display: block; }
+  .feye { position: absolute; transition: transform .25s ease-out; }
+  .feye img { transition: transform .12s ease-in-out; transform-origin: 50% 55%; }
+  #mouthArt { position: absolute; overflow: visible; }
+  #dude.m-happy .feye img, #dude.m-love .feye img { transform: scaleY(.55); }
+  #dude.m-excited .feye img { transform: scale(1.18); }
+  #dude.m-judging .feye img { transform: scaleY(.45); }
+  #dude.m-sad .feye img { transform: translateY(10%) scaleY(.75); }
+  #dude.m-curious #eyeL img { transform: scale(1.2); }
+  #dude.m-curious #eyeR img { transform: scale(.88); }
+  /* closed eyes: hide the eye and draw a bold lid line in the same ink */
+  .lid { position: absolute; inset: 0; display: none; fill: none; stroke: #000; stroke-width: 9; stroke-linecap: round; }
+  #dude.m-sleepy .feye img, #dude.asleep .feye img, #dude.blink .feye img { opacity: 0; transition: none; }
+  #dude.m-sleepy .lid, #dude.asleep .lid, #dude.blink .lid { display: block; }
+  #zzz { position: absolute; right: 8px; top: 0; font-weight: 700; color: #7c6cf0; display: none; animation: zz 2s infinite; }
+  #dude.asleep #zzz { display: block; }
+  #blind { position: absolute; left: 4px; top: 4px; font-size: 18px; display: none; }
+  #dude.blind #blind { display: block; }
+
+  @keyframes bob { 50% { transform: translateY(-5px); } }
+  @keyframes hop { 40% { transform: translateY(-28px) scaleY(1.05); } 80% { transform: translateY(0) scaleY(.92); } }
+  @keyframes breathe { 50% { transform: scaleY(.96); } }
+  @keyframes zz { 0% { opacity: 0; transform: translate(0, 10px); } 50% { opacity: 1; } 100% { opacity: 0; transform: translate(12px, -14px); } }
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="bubble"></div>
+  <div id="chat" class="hit panel"><input id="input" placeholder="ask me something…" maxlength="500"></div>
+
+  <div id="notes" class="hit panel">
+    <textarea id="noteText" placeholder="jot something down… (ctrl+enter to save)"></textarea>
+    <div class="row"><span id="noteMsg" class="muted grow"></span>
+      <button class="btn" data-open="notes" title="open notes folder">📂</button><button class="btn dark" id="noteSave">save</button></div>
+  </div>
+
+  <div id="spot" class="hit panel">
+    <div id="spotSetup">
+      <div class="muted">paste your spotify app's <b>Client ID</b> (one-time setup — see README)</div>
+      <div class="row"><input id="spotClientId" class="grow" placeholder="client id"></div>
+      <div class="row"><button class="btn" id="spotDash">get one ↗</button><span class="grow"></span><button class="btn dark" id="spotConnect">connect</button></div>
+    </div>
+    <div id="spotPlayer">
+      <div id="spotNow"><img id="spotArt"><div style="min-width:0"><div id="spotTitle">nothing playing</div><div id="spotArtist" class="muted"></div></div></div>
+      <div class="row"><button class="btn" data-sp="previous">⏮</button><button class="btn dark" id="spotToggle">⏯</button><button class="btn" data-sp="next">⏭</button>
+        <span class="grow"></span><button class="btn" id="spotLogout" title="disconnect">⏏</button></div>
+      <div class="row"><input id="spotQuery" class="grow" placeholder="play anything… (enter)"></div>
+    </div>
+    <div id="spotMsg" class="muted" style="margin-top:6px"></div>
+  </div>
+
+  <div id="rec" class="hit panel">
+    <div class="row" style="margin-top:0"><span id="recTime" class="grow">00:00</span>
+      <button class="btn" data-open="recordings" title="open recordings folder">📂</button><button class="btn dark" id="recBtn">⏺ record</button></div>
+    <div id="recMsg" class="muted" style="margin-top:6px">records your mic + whatever your PC is playing</div>
+  </div>
+
+  <div id="toolbar" class="hit">
+    <button data-panel="chat" title="chat">💬</button><button data-panel="notes" title="notes">📝</button>
+    <button data-panel="spot" title="spotify">🎵</button><button data-panel="rec" title="record audio">⏺</button>
+  </div>
+  <div id="dude" class="interactive">
+    <span id="recBadge">● REC</span>
+    <span id="zzz">z z z</span>
+    <span id="blind" title="not watching">🙈</span>
+    <img id="art" style="display:none">
+    <img id="perch" src="assets/bird.png" style="display:none">
+    <div id="face">
+      <div class="feye" id="eyeL"><img src="assets/eye-left.png"><svg class="lid" viewBox="0 0 100 60" preserveAspectRatio="none"><path d="M10 38 Q50 58 92 32"/></svg></div>
+      <div class="feye" id="eyeR"><img src="assets/eye-right.png"><svg class="lid" viewBox="0 0 100 60" preserveAspectRatio="none"><path d="M8 40 Q48 60 90 30"/></svg></div>
+      <svg id="mouthArt" viewBox="0 0 40 30"><path id="mouthPath" stroke="#000" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </div>
+    <svg id="blob" viewBox="0 0 200 200">
+      <ellipse cx="100" cy="180" rx="60" ry="10" fill="rgba(0,0,0,.18)"/>
+      <path d="M100 30 C155 30 175 80 175 120 C175 165 145 178 100 178 C55 178 25 165 25 120 C25 80 45 30 100 30Z" fill="#8f7ff7"/>
+      <path d="M60 55 C75 42 95 40 110 42" stroke="#b9afff" stroke-width="8" stroke-linecap="round" fill="none"/>
+      <g id="eyes">
+        <ellipse class="eye" cx="72" cy="100" rx="17" ry="20" fill="#fff"/>
+        <ellipse class="eye" cx="128" cy="100" rx="17" ry="20" fill="#fff"/>
+        <circle class="pupil" cx="72" cy="102" r="9" fill="#2b2140"/>
+        <circle class="pupil" cx="128" cy="102" r="9" fill="#2b2140"/>
+      </g>
+      <g id="lids" style="display:none" stroke="#2b2140" stroke-width="5" stroke-linecap="round" fill="none">
+        <path d="M56 104 Q72 112 88 104"/><path d="M112 104 Q128 112 144 104"/>
+      </g>
+      <ellipse cx="50" cy="128" rx="11" ry="6" fill="#ff9bc4" opacity=".6"/>
+      <ellipse cx="150" cy="128" rx="11" ry="6" fill="#ff9bc4" opacity=".6"/>
+      <path id="mouth" d="M88 135 Q100 145 112 135" stroke="#2b2140" stroke-width="5" stroke-linecap="round" fill="none"/>
+    </svg>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const dude = $('dude'), bubble = $('bubble'), chat = $('chat'), input = $('input'), art = $('art'), blob = $('blob'), perch = $('perch');
+const MOUTHS = {
+  idle: 'M88 135 Q100 145 112 135', happy: 'M84 132 Q100 152 116 132', excited: 'M86 130 Q100 158 114 130 Z',
+  curious: 'M94 138 Q100 134 106 138', judging: 'M88 140 L112 136', sad: 'M86 144 Q100 132 114 144',
+  love: 'M84 132 Q100 152 116 132', talk: 'M90 134 Q100 150 110 134 Z', sleepy: 'M94 140 Q100 143 106 140',
+};
+// mouths for the drawn character, in the 40x30 mouth box (idle = his original grumpy frown)
+const FACE_MOUTHS = {
+  idle: 'M10 22 Q14 10 21 10 Q28 11 31 19', judging: 'M11 18 L30 15', happy: 'M10 13 Q20 25 31 13',
+  love: 'M10 13 Q20 25 31 13', excited: 'M10 12 Q20 28 31 12 Z', curious: 'M16 16 a4 4 0 1 0 8 0 a4 4 0 1 0 -8 0',
+  sad: 'M9 24 Q20 6 32 24', sleepy: 'M15 17 Q20 19 25 17', talk: 'M12 12 Q20 26 29 12 Z',
+};
+const TALK_MOUTHS = ['M12 13 Q20 24 29 13 Z', 'M14 15 Q20 19 27 15 Z', 'M12 12 Q20 27 29 12 Z', 'M13 16 Q20 18 28 16'];
+let assets = [], config = {}, mood = 'idle', bubbleTimer, faceOn = false, talkTimer;
+
+function drawMouth(d) {
+  $('mouthPath').setAttribute('d', d);
+  $('mouthPath').setAttribute('fill', /Z$/.test(d) ? '#000' : 'none');
+}
+
+function talk(ms) {
+  clearInterval(talkTimer);
+  if (!faceOn) return;
+  const end = Date.now() + ms;
+  let i = 0;
+  talkTimer = setInterval(() => {
+    if (Date.now() > end) { clearInterval(talkTimer); drawMouth(FACE_MOUTHS[mood]); return; }
+    drawMouth(TALK_MOUTHS[i++ % TALK_MOUTHS.length]);
+  }, 110);
+}
+
+function blink() {
+  dude.classList.add('blink');
+  setTimeout(() => dude.classList.remove('blink'), 130);
+}
+(function blinkLoop() {
+  setTimeout(() => { blink(); if (Math.random() < 0.2) setTimeout(blink, 280); blinkLoop(); }, 2500 + Math.random() * 4000);
+})();
+
+function setMood(m) {
+  mood = m in MOUTHS ? m : 'idle';
+  dude.classList.remove(...[...dude.classList].filter(c => c.startsWith('m-')));
+  dude.classList.add(`m-${mood}`);
+  if (faceOn) drawMouth(FACE_MOUTHS[mood]);
+  const file = ['gif', 'png', 'webp', 'apng'].map(ext => `${mood}.${ext}`).find(f => assets.includes(f))
+    || ['gif', 'png', 'webp', 'apng'].map(ext => `idle.${ext}`).find(f => assets.includes(f))
+    || assets[0];
+  if (file) {
+    art.src = `assets/${file}`; art.style.display = ''; blob.style.display = 'none';
+  } else {
+    $('mouth').setAttribute('d', MOUTHS[mood]);
+    $('mouth').setAttribute('fill', /Z$/.test(MOUTHS[mood]) ? '#2b2140' : 'none');
+    const closed = mood === 'sleepy' || dude.classList.contains('asleep');
+    $('eyes').style.display = closed ? 'none' : ''; $('lids').style.display = closed ? '' : 'none';
+  }
+}
+
+function say(text, opts = {}) {
+  clearTimeout(bubbleTimer);
+  bubble.textContent = text;
+  bubble.classList.toggle('thinking', !!opts.thinking);
+  bubble.classList.add('show');
+  if (!opts.sticky) bubbleTimer = setTimeout(() => bubble.classList.remove('show'), (config.bubbleSeconds || 9) * 1000 + text.length * 40);
+}
+
+function hop() { dude.classList.remove('hop'); void dude.offsetWidth; dude.classList.add('hop'); setTimeout(() => dude.classList.remove('hop'), 500); }
+
+// tell main where the clickable bits are; everything else is click-through
+const rectOf = el => { const r = el.getBoundingClientRect(); return { x: r.left, y: r.top, w: r.width, h: r.height }; };
+setInterval(() => {
+  window.pet.hitRects({
+    rects: [...document.querySelectorAll('#dude, #bubble.show, .hit.show')].map(rectOf),
+    perch: perch.dataset.on ? rectOf(perch) : null, // where the bird sits, so it knows where to fly home to
+  });
+}, 150);
+window.pet.on('bird', where => { perch.style.visibility = where === 'away' ? 'hidden' : ''; if (where === 'home') hop(); });
+window.pet.on('hover', over => dude.classList.toggle('hover', over));
+
+// drag to move, click to chat, right-click for menu
+let dragging = false, downAt = null;
+dude.addEventListener('pointerdown', e => {
+  if (e.button !== 0) return;
+  downAt = { x: e.screenX, y: e.screenY }; dude.setPointerCapture(e.pointerId); window.pet.dragStart();
+});
+dude.addEventListener('pointermove', e => {
+  if (!downAt) return;
+  if (!dragging && Math.hypot(e.screenX - downAt.x, e.screenY - downAt.y) > 4) { dragging = true; dude.style.cursor = 'grabbing'; }
+  if (dragging) window.pet.dragMove();
+});
+dude.addEventListener('pointerup', () => {
+  window.pet.dragEnd();
+  if (!dragging && downAt) togglePanels();
+  dragging = false; downAt = null; dude.style.cursor = '';
+});
+dude.addEventListener('contextmenu', e => { e.preventDefault(); window.pet.menu(); });
+
+input.addEventListener('keydown', e => {
+  if (e.key === 'Escape') togglePanels(false);
+  if (e.key === 'Enter' && input.value.trim()) {
+    window.pet.chat(input.value.trim()); input.value = ''; togglePanels(false);
+  }
+});
+
+window.pet.on('thinking', () => { say('hmm… lemme look…', { thinking: true, sticky: true }); setMood('curious'); });
+window.pet.on('reply', r => {
+  setMood(r.mood);
+  if (r.say) { say(r.say); hop(); talk(600 + r.say.length * 55); } else bubble.classList.remove('show');
+  setTimeout(() => setMood(dude.classList.contains('asleep') ? 'sleepy' : 'idle'), 15000);
+});
+// right-click → "Show all expressions": run through every mood
+const SHOWCASE = [
+  ['idle', 'this is my normal face. grumpy. professional.'], ['happy', 'happy!! :)'], ['excited', 'EXCITED'],
+  ['curious', 'ooh? what is that?'], ['judging', 'i am judging you.'], ['sad', 'sad… :('], ['love', 'love this'],
+  ['talk', 'blah blah blah blah'], ['sleepy', 'so… sleepy…'], ['idle', "ok that's all of them"],
+];
+let showcasing = false;
+window.pet.on('showcase', async () => {
+  if (showcasing) return;
+  showcasing = true;
+  for (const [m, line] of SHOWCASE) {
+    setMood(m); say(line); talk(400 + line.length * 45); if (m !== 'sleepy') hop();
+    await new Promise(r => setTimeout(r, 2200));
+  }
+  showcasing = false;
+});
+
+window.pet.on('sleep', () => { dude.classList.add('asleep'); setMood('sleepy'); });
+window.pet.on('wake', () => { dude.classList.remove('asleep'); setMood('happy'); hop(); setTimeout(() => setMood('idle'), 3000); });
+window.pet.on('watching', on => { dude.classList.toggle('blind', !on); say(on ? 'eyes open 👀' : "ok ok, i won't look"); });
+
+// drawn face: eyes glance toward your cursor, and look around on their own when you're still
+let lastCur = null, stillSince = Date.now(), wanderAt = 0, wander = { x: 0, y: 0 };
+function glance(c) {
+  if (lastCur && (c.x !== lastCur.x || c.y !== lastCur.y)) stillSince = Date.now();
+  lastCur = c;
+  let ox, oy;
+  if (Date.now() - stillSince > 4000) {
+    if (Date.now() > wanderAt) {
+      wander = Math.random() < 0.3 ? { x: 0, y: 0 } : { x: (Math.random() * 2 - 1) * 4, y: (Math.random() * 2 - 1) * 2 };
+      wanderAt = Date.now() + 1500 + Math.random() * 2500;
+    }
+    ({ x: ox, y: oy } = wander);
+  } else {
+    const r = $('face').getBoundingClientRect();
+    const dx = c.x - (r.left + r.width * 0.6), dy = c.y - (r.top + r.height * 0.75);
+    const d = Math.hypot(dx, dy) || 1, k = Math.min(1, d / 250);
+    ox = dx / d * k * 4; oy = dy / d * k * 2.5;
+  }
+  for (const id of ['eyeL', 'eyeR']) $(id).style.transform = `translate(${ox}px, ${oy}px)`;
+}
+
+// placeholder blob: eyes follow your cursor + blink
+window.pet.on('cursor', c => {
+  if (faceOn) glance(c);
+  if (blob.style.display === 'none') return;
+  const r = dude.getBoundingClientRect();
+  const dx = c.x - (r.left + r.width / 2), dy = c.y - (r.top + r.height * 0.5);
+  const d = Math.hypot(dx, dy) || 1, k = Math.min(6, d / 40);
+  document.querySelectorAll('.pupil').forEach((p, i) => {
+    p.setAttribute('cx', (i ? 128 : 72) + dx / d * k); p.setAttribute('cy', 102 + dy / d * k);
+  });
+});
+setInterval(() => {
+  if (blob.style.display === 'none' || mood === 'sleepy' || dude.classList.contains('asleep')) return;
+  document.querySelectorAll('.eye, .pupil').forEach(el => el.style.transform = 'scaleY(.1)');
+  document.querySelectorAll('.eye, .pupil').forEach(el => { el.style.transformOrigin = '50% 50%'; el.style.transformBox = 'fill-box'; });
+  setTimeout(() => document.querySelectorAll('.eye, .pupil').forEach(el => el.style.transform = ''), 140);
+}, 4200);
+setInterval(() => { if (!dude.classList.contains('asleep') && Math.random() < 0.25) hop(); }, 20000);
+
+(async () => {
+  let sprite;
+  [assets, config, sprite] = await Promise.all([window.pet.assets(), window.pet.config(), window.pet.sprite()]);
+  setMood('idle');
+  if (sprite && art.style.display !== 'none') {
+    // lay out body + perched bird as in assets/sprite.json ([x, y, w, h] in source pixels)
+    const [W, H] = sprite.size;
+    dude.style.height = `${dude.offsetWidth * H / W}px`;
+    const place = (el, [x, y, w, h]) => Object.assign(el.style, {
+      position: 'absolute', left: `${x / W * 100}%`, top: `${y / H * 100}%`, width: `${w / W * 100}%`, height: `${h / H * 100}%`,
+    });
+    place(art, sprite.body);
+    if (sprite.bird && assets.includes('bird.png')) { place(perch, sprite.bird); perch.style.display = ''; perch.dataset.on = '1'; }
+    if (sprite.mouth && assets.includes('eye-left.png') && assets.includes('eye-right.png')) {
+      place($('eyeL'), sprite.eyeLeft); place($('eyeR'), sprite.eyeRight); place($('mouthArt'), sprite.mouth);
+      $('face').classList.add('on'); faceOn = true; setMood('idle');
+    }
+  }
+  const hello = `hi! i'm ${config.name.toLowerCase()} 👋 click me to chat, right-click for options`;
+  say(hello); talk(1500);
+})();
+</script>
+<script src="tools.js"></script>
+</body>
+</html>
