@@ -1,0 +1,25 @@
+﻿const { contextBridge, ipcRenderer } = require('electron');
+
+contextBridge.exposeInMainWorld('pet', {
+  assets: () => ipcRenderer.invoke('assets'),
+  config: () => ipcRenderer.invoke('config'),
+  sprite: () => ipcRenderer.invoke('sprite'),
+  saveNote: text => ipcRenderer.invoke('save-note', text),
+  openFolder: which => ipcRenderer.send('open-folder', which),
+  recStart: () => ipcRenderer.invoke('rec-start'),
+  recChunk: bytes => ipcRenderer.send('rec-chunk', bytes),
+  recStop: () => ipcRenderer.invoke('rec-stop'),
+  spotifyState: () => ipcRenderer.invoke('spotify-state'),
+  spotifyAction: (action, query) => ipcRenderer.invoke('spotify-action', action, query),
+  spotifyLogin: clientId => ipcRenderer.invoke('spotify-login', clientId),
+  spotifyLogout: () => ipcRenderer.invoke('spotify-logout'),
+  openSpotifyDashboard: () => ipcRenderer.send('open-spotify-dashboard'),
+  hitRects: rects => ipcRenderer.send('hit-rects', rects),
+  focus: () => ipcRenderer.send('focus'),
+  chat: text => ipcRenderer.send('chat', text),
+  menu: () => ipcRenderer.send('menu'),
+  dragStart: () => ipcRenderer.send('drag-start'),
+  dragMove: () => ipcRenderer.send('drag-move'),
+  dragEnd: () => ipcRenderer.send('drag-end'),
+  on: (channel, fn) => ipcRenderer.on(channel, (_, data) => fn(data)),
+});
