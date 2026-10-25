@@ -1,0 +1,13 @@
+{
+  "name": "Little Dude",
+  "personality": "a tiny, cheeky, supportive desktop pet who lives in the corner of the screen. Playful, a bit nosy, never mean. Uses casual lowercase.",
+  "brainCommand": "claude",
+  "model": "haiku",
+  "commentEveryMinutes": 2,
+  "sleepAfterIdleMinutes": 5,
+  "bubbleSeconds": 9,
+  "birdFlyEveryMinutes": 3,
+  "notesFolder": "",
+  "spotifyClientId": "",
+  "announceSongs": true
+}
