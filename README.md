@@ -27,6 +27,19 @@ Or double-click `start.bat`.
 
 He falls asleep after 5 idle minutes and stops commenting until you're back.
 
+## Spotify setup (one time, ~5 minutes)
+
+Spotify doesn't let apps connect without a "Client ID", so you make your own (free):
+
+1. Go to <https://developer.spotify.com/dashboard> and log in. Click **Create app**.
+2. Give it any name and description.
+3. Under **Redirect URIs**, add exactly `http://127.0.0.1:8888/callback`.
+4. Tick **Web API**, agree to the terms, and save.
+5. Open the app's **Settings** and copy the **Client ID**.
+6. Click little dude, open 🎵, paste the Client ID, and press **connect**. Then log in to Spotify in the browser tab that opens.
+
+Showing what's playing works on any account. Playing, pausing, and skipping need **Spotify Premium** (a Spotify rule). If nothing happens, open Spotify on some device first so there's somewhere for the music to play.
+
 ## Settings (`config.json`)
 
 | key | what it does |
