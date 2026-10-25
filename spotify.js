@@ -11,6 +11,7 @@ const b64url = buf => buf.toString('base64').replace(/\+/g, '-').replace(/\//g, 
 
 module.exports = function createSpotify({ getClientId, tokenFile }) {
   let tok = null;
+  let cancelPending = null; // an earlier login still waiting for the browser
   try { tok = JSON.parse(fs.readFileSync(tokenFile, 'utf8')); } catch {}
 
   function saveTok(t) {
@@ -30,7 +31,8 @@ module.exports = function createSpotify({ getClientId, tokenFile }) {
   }
 
   // opens the browser, waits for Spotify to redirect back to our little local server
-  function login() {
+  async function login() {
+    if (cancelPending) await cancelPending(); // clicking connect again restarts the login instead of clashing on the port
     return new Promise((resolve, reject) => {
       const verifier = b64url(crypto.randomBytes(48));
       const challenge = b64url(crypto.createHash('sha256').update(verifier).digest());
@@ -40,9 +42,7 @@ module.exports = function createSpotify({ getClientId, tokenFile }) {
         if (url.pathname !== '/callback') { res.writeHead(404).end(); return; }
         const done = (msg, err) => {
           res.writeHead(200, { 'Content-Type': 'text/html' }).end(`<body style="font:18px sans-serif;text-align:center;padding:60px">${msg}</body>`);
-          server.close();
-          clearTimeout(timeout);
-          err ? reject(err) : resolve();
+          finish(err);
         };
         if (url.searchParams.get('state') !== state || !url.searchParams.get('code')) return done('login cancelled', new Error(url.searchParams.get('error') || 'cancelled'));
         try {
@@ -50,8 +50,16 @@ module.exports = function createSpotify({ getClientId, tokenFile }) {
           done('✅ little dude is connected to your Spotify. you can close this tab.');
         } catch (e) { done('login failed: ' + e.message, e); }
       });
-      const timeout = setTimeout(() => { server.close(); reject(new Error('login timed out')); }, 5 * 60000);
-      server.on('error', reject);
+      const finish = err => {
+        clearTimeout(timeout);
+        cancelPending = null;
+        server.closeAllConnections?.();
+        server.close();
+        err ? reject(err) : resolve();
+      };
+      const timeout = setTimeout(() => finish(new Error('login timed out')), 5 * 60000);
+      cancelPending = () => new Promise(r => { server.once('close', r); finish(new Error('login restarted')); });
+      server.on('error', e => finish(e.code === 'EADDRINUSE' ? new Error('port 8888 is busy — close whatever uses it and try again') : e));
       server.listen(PORT, '127.0.0.1', () => {
         shell.openExternal('https://accounts.spotify.com/authorize?' + new URLSearchParams({
           client_id: getClientId(), response_type: 'code', redirect_uri: REDIRECT, scope: SCOPES,
