@@ -1,0 +1,8 @@
+Drop your little guy's art in this folder (PNG, GIF, WEBP or APNG — transparent background looks best).
+
+Name files after moods and he'll switch between them:
+  idle     - default, required if you only add one file
+  happy, excited, curious, judging, sad, love, talk, sleepy
+
+Example: idle.gif, sleepy.png, excited.gif
+Any mood without a file falls back to idle. Restart the app after adding files.
