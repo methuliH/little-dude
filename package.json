@@ -1,0 +1,12 @@
+{
+  "name": "little-dude",
+  "version": "0.1.0",
+  "description": "A little guy who lives on your desktop and watches what you're doing",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "devDependencies": {
+    "electron": "^33.2.0"
+  }
+}
